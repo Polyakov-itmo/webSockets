@@ -1,112 +1,81 @@
 import React, { useEffect, useRef, useState } from "react";
+import Highcharts from "highcharts";
+import HighchartsReact from "highcharts-react-official";
+
+import socketIOClient from "socket.io-client";
+const ENDPOINT = "http://127.0.0.1:5000";
 
 const WebSock = () => {
-  const [messages, setMessages] = useState([]);
-  const [value, setValue] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [username, setUsername] = useState("");
-  const socket = useRef();
+  const [asks, setAsks] = useState([]);
+  const [bids, setBids] = useState([]);
+  const [time, setTime] = useState([]);
 
-  //   useEffect(() => {
-  //     socket.current = new WebSocket("ws://localhost:5000");
+  const prepareData = (array) => {
+    return array.map((item) => {
+      var asks = JSON.parse(item.asks);
 
-  //     socket.current.onopen = () => {
-  //       console.log("--open");
-  //       setConnected(true);
-  //     };
+      var ask_sum = 0;
+      for (const prop in asks) {
+        ask_sum += asks[prop];
+      }
+      var bids = JSON.parse(item.bids);
 
-  //     socket.current.onmessage = () => {
-  //       console.log("--message");
-  //     };
-  //     socket.current.onclose = () => {
-  //       console.log("--close");
-  //       setConnected(false);
-  //     };
-  //     socket.current.onerror = () => {
-  //       setConnected(false);
-  //       console.log("--error");
-  //     };
-  //   }, []);
+      var bid_sum = 0;
+      for (const prop in bids) {
+        bid_sum += bids[prop];
+      }
 
-  function connect() {
-    socket.current = new WebSocket("ws://localhost:5000");
-
-    socket.current.onopen = () => {
-      setConnected(true);
-      const message = {
-        event: "connection",
-        username,
-        id: Date.now(),
+      return {
+        time: item.time,
+        ask: ask_sum,
+        bid: bid_sum,
       };
-      socket.current.send(JSON.stringify(message));
-    };
-    socket.current.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      console.log(message);
-      setMessages((prev) => [message, ...prev]);
-    };
-    socket.current.onclose = () => {
-      console.log("Socket закрыт");
-    };
-    socket.current.onerror = () => {
-      console.log("Socket произошла ошибка");
-    };
-  }
-
-  const sendMessage = async () => {
-    const message = {
-      username,
-      message: value,
-      id: Date.now(),
-      event: "message",
-    };
-    socket.current.send(JSON.stringify(message));
-    setValue("");
+    });
   };
 
-  if (!connected) {
-    return (
-      <div className="center">
-        <div className="form">
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            type="text"
-            placeholder="Введите ваше имя"
-          />
-          <button onClick={connect}>Войти</button>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const socket = socketIOClient(ENDPOINT);
+
+    socket.on("FromAPI", (res) => {
+      var newData = prepareData(res);
+
+      var asks = newData.map((item) => item.ask);
+      console.log("asks", asks);
+      var times = newData.map((item) => item.time);
+      var bids = newData.map((item) => item.bid);
+
+      setAsks((prev) => [asks, ...prev]);
+      setBids((prev) => [bids, ...prev]);
+      setTime((prev) => [times, ...prev]);
+    });
+  }, []);
 
   return (
-    <div className="center">
-      <div>
-        <div className="form">
-          <input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            type="text"
-          />
-          <button onClick={sendMessage}>Отправить</button>
-        </div>
-        <div className="messages">
-          {messages.map((mess) => (
-            <div key={mess.id}>
-              {mess.event === "connection" ? (
-                <div className="connection_message">
-                  Пользователь {mess.username} подключился
-                </div>
-              ) : (
-                <div className="message">
-                  {mess.username}. {mess.message}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+    <div>
+      <HighchartsReact
+        highcharts={Highcharts}
+        options={{
+          xAxis: {
+            tickInterval: 1,
+          },
+          yAxis: {
+            minorTickInterval: 0.1,
+          },
+          title: {
+            text: "My chart",
+          },
+          series: [
+            {
+              name: "asks",
+              data: asks,
+            },
+            // {
+            //   name: "bids",
+            //   data: bids,
+            // },
+          ],
+        }}
+      />
     </div>
   );
 };
